@@ -320,6 +320,11 @@ func (s *Service) createAPIToken(ctx context.Context, sessionToken string) (stri
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusConflict {
+		// Token already exists from previous run — use session token instead
+		slog.Info("api token already exists, using session token")
+		return sessionToken, nil
+	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return "", fmt.Errorf("create token failed: status %d", resp.StatusCode)
 	}
