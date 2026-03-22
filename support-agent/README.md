@@ -152,13 +152,14 @@ LLM_MODEL=llama3.2
 docker compose up -d
 ```
 
-This starts three services:
+This starts four services:
 
 | Service | Description |
 |---------|-------------|
 | **db** | PostgreSQL (pgvector) -- agent state and knowledge storage |
 | **mcp-server** | Builds the support data MCP tool server binary |
 | **engine** | ByteBrew Engine -- the AI agent platform (port 8443) |
+| **web-client** | ByteBrew Web Client -- chat UI (port 3000) |
 
 Wait ~30 seconds for the engine to start and import the agent configuration.
 
@@ -174,9 +175,11 @@ curl -X POST \
   http://localhost:8443/api/v1/config/import
 ```
 
-### 4. Verify in the Admin Dashboard
+### 4. Start chatting
 
-Open [http://localhost:8443/admin](http://localhost:8443/admin) and log in with:
+Open the Web Client at [http://localhost:3000](http://localhost:3000) to chat with the support agent.
+
+To manage agents, open the Admin Dashboard at [http://localhost:8443/admin](http://localhost:8443/admin) and log in with:
 - Username: `admin` (or whatever you set in `.env`)
 - Password: `changeme` (or whatever you set in `.env`)
 
@@ -239,20 +242,6 @@ Router step 2: spawn("billing", "CUST-003 was charged $29 instead of $19...")
   Billing step 3: [returns result to router]
 Router step 3: [summarizes billing result for user]
 ```
-
-## Chat via ByteBrew Web Client
-
-For a full chat UI, use the [ByteBrew Web Client](https://github.com/syntheticinc/bytebrew-web-client):
-
-```bash
-# In a separate directory
-git clone https://github.com/syntheticinc/bytebrew-web-client.git
-cd bytebrew-web-client
-npm install
-VITE_ENGINE_URL=http://localhost:8443 npm run dev
-```
-
-Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Project Structure
 

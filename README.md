@@ -6,23 +6,25 @@ Each example is self-contained: clone, configure your API key, run `docker compo
 
 ## Examples
 
-| Example | Description | Agents | Tools |
-|---------|-------------|--------|-------|
-| [company-assistant](./company-assistant/) | HR + IT support multi-agent system | supervisor, hr-agent, it-support | MCP server with employee data, tickets, knowledge base |
+| Example | Description | Agents | Key Features |
+|---------|-------------|--------|--------------|
+| [hr-assistant](./hr-assistant/) | AI-powered HR assistant with leave management and company policies | hr-assistant | Knowledge Base (RAG), ask_user, MCP tools, escalation |
+| [support-agent](./support-agent/) | Multi-agent customer support with specialist routing | support-router, billing, technical | Multi-agent spawn, parallel tool execution, 8 MCP tools |
+| [sales-agent](./sales-agent/) | Sales assistant for product search, quotes, and discounts | sales-agent | confirm_before, Settings CRUD, BYOK (Bring Your Own Key) |
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/syntheticinc/bytebrew-examples.git
-cd bytebrew-examples/company-assistant
+cd bytebrew-examples/hr-assistant
 
 cp .env.example .env
-# Edit .env -- add your OpenAI API key (or configure Ollama)
+# Edit .env -- add your LLM API key (OpenAI, OpenRouter, or configure Ollama)
 
 docker compose up -d
 ```
 
-Then open the Admin Dashboard at [http://localhost:8443/admin](http://localhost:8443/admin) to see your agents, or start chatting via the API.
+Open the Web Client at [http://localhost:3000](http://localhost:3000) to start chatting, or the Admin Dashboard at [http://localhost:8443/admin](http://localhost:8443/admin) to manage your agents.
 
 ## Prerequisites
 

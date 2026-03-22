@@ -56,26 +56,18 @@ The service proxy forwards these headers to the Engine, which uses them instead 
 
 ```
                         +------------------+
-                        |   Web Client     |
-                        +--------+---------+
-                                 |
-                          POST /api/v1/chat/sales-agent
-                          + BYOK headers (optional)
-                                 |
-                        +--------v---------+
-                        |  Service (Go)    |
-                        |  - JWT auth      |
-                        |  - Rate limiting |
-                        |  - BYOK forward  |
+                        | Web Client :3000 |
                         +--------+---------+
                                  |
                           Engine REST API
                                  |
                         +--------v---------+
-                        |  ByteBrew Engine |
+                        | ByteBrew Engine  |
+                        | :8443            |
                         |  - Agent runtime |
                         |  - confirm_before|
                         |  - Settings API  |
+                        |  - BYOK support  |
                         +--------+---------+
                                  |
                           MCP (stdio)
@@ -107,8 +99,8 @@ docker compose up -d
 This starts:
 - **PostgreSQL** -- Engine database
 - **MCP Server** -- Sales data tools (built as a Go binary)
-- **Engine** -- ByteBrew agent runtime
-- **Service** -- HTTP proxy with auth, rate limiting, BYOK
+- **Engine** -- ByteBrew agent runtime (port 8443)
+- **Web Client** -- ByteBrew Web Client -- chat UI (port 3000)
 
 ### 3. Seed Settings
 
@@ -118,18 +110,11 @@ After the engine is up, seed the business rule settings:
 ./scripts/seed-settings.sh
 ```
 
-### 4. Test
+### 4. Start chatting
 
-```bash
-# Health check
-curl http://localhost:3000/api/v1/health
+Open the Web Client at [http://localhost:3000](http://localhost:3000) to chat with the sales agent.
 
-# Chat (requires JWT -- see service auth)
-curl -X POST http://localhost:3000/api/v1/chat/sales-agent \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "I need a laptop under $1200"}'
-```
+To manage agents and settings, open the Admin Dashboard at [http://localhost:8443/admin](http://localhost:8443/admin) (login: `admin` / `changeme`).
 
 ## MCP Tools
 

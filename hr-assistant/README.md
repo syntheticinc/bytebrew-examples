@@ -132,7 +132,7 @@ This starts four services:
 | **db** | PostgreSQL (pgvector) -- agent state and knowledge base storage |
 | **mcp-server** | Builds the HR data MCP tool server binary |
 | **engine** | ByteBrew Engine -- the AI agent platform (port 8443) |
-| **service** | Placeholder escalation webhook receiver (port 3000) |
+| **web-client** | ByteBrew Web Client -- chat UI (port 3000) |
 
 Wait ~30 seconds for the engine to start and import the agent configuration.
 
@@ -148,9 +148,11 @@ curl -X POST \
   http://localhost:8443/api/v1/config/import
 ```
 
-### 4. Verify in the Admin Dashboard
+### 4. Start chatting
 
-Open [http://localhost:8443/admin](http://localhost:8443/admin) and log in with:
+Open the Web Client at [http://localhost:3000](http://localhost:3000) to chat with the HR assistant.
+
+To manage agents, open the Admin Dashboard at [http://localhost:8443/admin](http://localhost:8443/admin) and log in with:
 - Username: `admin` (or whatever you set in `.env`)
 - Password: `changeme` (or whatever you set in `.env`)
 
@@ -202,25 +204,11 @@ curl -s -X POST \
   | jq .
 ```
 
-## Chat via ByteBrew Web Client
-
-For a full chat UI, use the [ByteBrew Web Client](https://github.com/syntheticinc/bytebrew-web-client):
-
-```bash
-# In a separate directory
-git clone https://github.com/syntheticinc/bytebrew-web-client.git
-cd bytebrew-web-client
-npm install
-VITE_ENGINE_URL=http://localhost:8443 npm run dev
-```
-
-Then open [http://localhost:5173](http://localhost:5173) in your browser.
-
 ## Project Structure
 
 ```
 hr-assistant/
-├── docker-compose.yml              # Engine + PostgreSQL + MCP + service
+├── docker-compose.yml              # Engine + PostgreSQL + MCP + Web Client
 ├── .env.example                    # Environment variable template
 ├── config/
 │   ├── agents.yaml                 # Agent definition (hr-assistant)
