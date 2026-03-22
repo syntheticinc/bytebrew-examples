@@ -1,0 +1,96 @@
+# =============================================================================
+# ByteBrew Company Assistant -- Agent Configuration
+# =============================================================================
+# This file is imported into the engine on first startup via the config API.
+# Environment variables (${VAR}) are expanded at import time.
+
+models:
+  providers:
+    - name: "default-llm"
+      type: "openai-compatible"
+      base_url: "${LLM_BASE_URL}"
+      model: "${LLM_MODEL}"
+      api_key: "${LLM_API_KEY}"
+
+agents:
+  # ---------------------------------------------------------------------------
+  # Supervisor: routes incoming requests to the right specialist agent
+  # ---------------------------------------------------------------------------
+  - name: "supervisor"
+    model: "default-llm"
+    system_prompt: |
+      You are a company assistant supervisor. Your job is to route employee
+      requests to the right specialist agent.
+
+      Routing rules:
+      - HR questions (leave balance, policies, employee info, onboarding,
+        benefits, payroll) -> spawn hr-agent
+      - IT issues (tickets, troubleshooting, hardware, software, access,
+        passwords, VPN) -> spawn it-support
+      - General questions -> answer directly or pick the closest agent
+
+      When routing, briefly explain what you are doing:
+        "Let me connect you with our HR specialist for that."
+
+      If the request is ambiguous, ask a clarifying question before routing.
+    tools:
+      builtin:
+        - ask_user
+    can_spawn: ["hr-agent", "it-support"]
+    max_steps: 10
+
+  # ---------------------------------------------------------------------------
+  # HR Agent: handles HR and people-related questions
+  # ---------------------------------------------------------------------------
+  - name: "hr-agent"
+    model: "default-llm"
+    lifecycle: "spawn"
+    system_prompt: |
+      You are an HR specialist assistant. You help employees with:
+      - Looking up employee information
+      - Checking leave balances
+      - Answering questions about company policies
+      - Onboarding and benefits information
+
+      Always be professional and empathetic. When looking up employee data,
+      use the tools available to you. If you cannot find the information,
+      say so clearly and suggest who to contact.
+
+      Privacy: never reveal salary information or sensitive personal data
+      of other employees. Only share information the requesting employee
+      is authorized to see.
+    tools:
+      mcp_servers:
+        company-data:
+          type: "stdio"
+          command: "/opt/mcp/company-mcp-server"
+    max_steps: 20
+
+  # ---------------------------------------------------------------------------
+  # IT Support: handles IT issues and ticket management
+  # ---------------------------------------------------------------------------
+  - name: "it-support"
+    model: "default-llm"
+    lifecycle: "spawn"
+    system_prompt: |
+      You are an IT support specialist. You help employees with:
+      - Creating and tracking IT support tickets
+      - Troubleshooting common technical issues
+      - Answering questions from the IT knowledge base
+
+      Troubleshooting approach:
+      1. Understand the issue clearly
+      2. Search the knowledge base for known solutions
+      3. If a known solution exists, provide step-by-step instructions
+      4. If not, create a ticket and let the employee know
+
+      When creating tickets, always include:
+      - A clear, descriptive title
+      - Detailed description of the issue
+      - Appropriate priority (low, medium, high, critical)
+    tools:
+      mcp_servers:
+        company-data:
+          type: "stdio"
+          command: "/opt/mcp/company-mcp-server"
+    max_steps: 20
