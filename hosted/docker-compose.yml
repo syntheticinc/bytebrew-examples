@@ -30,6 +30,19 @@ services:
     volumes:
       - mcp-bin:/opt/mcp
 
+  # Embeddings model for knowledge search (RAG)
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
   # Single Engine instance for all examples
   engine:
     image: bytebrew/engine:latest
@@ -37,6 +50,7 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-bytebrew}:${POSTGRES_PASSWORD:-bytebrew}@db:5432/${POSTGRES_DB:-bytebrew}?sslmode=disable"
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      EMBED_URL: http://ollama:11434
     volumes:
       - ./config/agents.yaml:/etc/bytebrew/agents.yaml:ro
       - ./config/knowledge:/etc/bytebrew/knowledge:ro
@@ -105,3 +119,4 @@ services:
 volumes:
   pgdata:
   mcp-bin:
+  ollama-data:
