@@ -476,6 +476,18 @@ func (s *Service) proxyAgents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) health(w http.ResponseWriter, r *http.Request) {
 	userID, _ := r.Context().Value(ctxKeyUserID).(string)
+	if userID == "" {
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, "Bearer ") {
+			tokenStr := strings.TrimPrefix(auth, "Bearer ")
+			claims := &Claims{}
+			token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
+				return []byte(s.cfg.JWTSecret), nil
+			})
+			if err == nil && token.Valid && claims.UserID != "" {
+				userID = claims.UserID
+			}
+		}
+	}
 
 	resp := map[string]any{
 		"status": "ok",
