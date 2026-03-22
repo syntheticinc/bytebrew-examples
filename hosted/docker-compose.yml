@@ -1,0 +1,107 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bytebrew}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bytebrew}
+      POSTGRES_DB: ${POSTGRES_DB:-bytebrew}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bytebrew}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # MCP servers (build binaries, exit)
+  mcp-hr:
+    build: ../hr-assistant/mcp-server
+    volumes:
+      - mcp-bin:/opt/mcp
+
+  mcp-support:
+    build: ../support-agent/mcp-server
+    volumes:
+      - mcp-bin:/opt/mcp
+
+  mcp-sales:
+    build: ../sales-agent/mcp-server
+    volumes:
+      - mcp-bin:/opt/mcp
+
+  # Single Engine instance for all examples
+  engine:
+    image: bytebrew/engine:latest
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-bytebrew}:${POSTGRES_PASSWORD:-bytebrew}@db:5432/${POSTGRES_DB:-bytebrew}?sslmode=disable"
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+    volumes:
+      - ./config/agents.yaml:/etc/bytebrew/agents.yaml:ro
+      - ./config/knowledge:/etc/bytebrew/knowledge:ro
+      - ./scripts/seed.sh:/docker-entrypoint.d/seed.sh:ro
+      - mcp-bin:/opt/mcp:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      mcp-hr:
+        condition: service_completed_successfully
+      mcp-support:
+        condition: service_completed_successfully
+      mcp-sales:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8443/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # 3 service proxies — one per example
+  service-hr:
+    build: ../hr-assistant/service
+    ports:
+      - "3001:3000"
+    environment:
+      ENGINE_URL: http://engine:8443
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      engine:
+        condition: service_healthy
+    restart: unless-stopped
+
+  service-support:
+    build: ../support-agent/service
+    ports:
+      - "3002:3000"
+    environment:
+      ENGINE_URL: http://engine:8443
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      engine:
+        condition: service_healthy
+    restart: unless-stopped
+
+  service-sales:
+    build: ../sales-agent/service
+    ports:
+      - "3003:3000"
+    environment:
+      ENGINE_URL: http://engine:8443
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      engine:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mcp-bin:

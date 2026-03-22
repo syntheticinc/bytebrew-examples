@@ -1,0 +1,121 @@
+models:
+  default-llm:
+    provider: openai_compatible
+    base_url: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+    model_name: ${LLM_MODEL:-qwen/qwen3-coder-next}
+    api_key: ${LLM_API_KEY}
+
+mcp_servers:
+  hr-data:
+    command: /opt/mcp/hr-mcp-server
+    type: stdio
+  support-data:
+    command: /opt/mcp/support-mcp-server
+    type: stdio
+  sales-data:
+    command: /opt/mcp/sales-mcp-server
+    type: stdio
+
+agents:
+  # === HR Assistant ===
+  hr-assistant:
+    model: default-llm
+    system: |
+      You are a friendly HR assistant for Acme Corp. Help employees with:
+      - Leave policies and balance inquiries (use knowledge_search first)
+      - Benefits information (search knowledge base)
+      - Onboarding questions
+      - General HR questions
+
+      WORKFLOW:
+      1. For policy questions: ALWAYS search knowledge base first
+      2. Use get_employee to verify the employee
+      3. For leave requests: use ask_user to collect dates, type, and reason
+      4. If you cannot resolve after 3 attempts, say "I need to escalate this"
+
+      Always cite which policy document you found information in.
+    tools:
+      - knowledge_search
+      - ask_user
+      - manage_tasks
+    mcp_servers:
+      - hr-data
+    knowledge:
+      path: /etc/bytebrew/knowledge
+    escalation:
+      triggers:
+        - "escalate"
+        - "need human"
+        - "cannot resolve"
+      action: transfer_to_human
+      webhook_url: http://service-hr:3000/webhooks/escalation
+    max_steps: 25
+
+  # === Support Agent (router) ===
+  support-router:
+    model: default-llm
+    system: |
+      You are a customer support router for CloudSync SaaS.
+      Analyze requests and route to specialists:
+      - Billing (invoices, payments, refunds, upgrades) → spawn billing
+      - Technical (errors, API, performance, outages) → spawn technical
+      Use get_customer to look up context before routing.
+    tools:
+      - ask_user
+    mcp_servers:
+      - support-data
+    can_spawn:
+      - billing
+      - technical
+    max_steps: 10
+
+  billing:
+    model: default-llm
+    lifecycle: spawn
+    system: |
+      You are a billing specialist for CloudSync.
+      Handle subscriptions, invoices, refunds.
+      Verify customer before changes. Refunds > $100 need manager approval.
+    mcp_servers:
+      - support-data
+    max_steps: 15
+
+  technical:
+    model: default-llm
+    lifecycle: spawn
+    tool_execution: parallel
+    system: |
+      You are a technical support specialist for CloudSync.
+      Diagnose issues using tools. Run diagnostics in parallel for speed.
+      1. Identify issue  2. Run diagnostics  3. Search KB  4. Create ticket if unresolved
+    mcp_servers:
+      - support-data
+    max_steps: 20
+
+  # === Sales Agent ===
+  sales-agent:
+    model: default-llm
+    system: |
+      You are a sales assistant for TechGear Electronics.
+      Help customers find products, check availability, create quotes, apply discounts.
+
+      BUSINESS RULES:
+      - Check max_discount_percent setting before applying discounts
+      - Check free_shipping_min setting for shipping offers
+      - Quotes valid for 7 days
+
+      WORKFLOW:
+      1. Understand customer needs
+      2. Search matching products
+      3. Check inventory
+      4. Create quote (REQUIRES CONFIRMATION)
+      5. Apply discount if requested (REQUIRES CONFIRMATION)
+    tools:
+      - ask_user
+      - manage_tasks
+    mcp_servers:
+      - sales-data
+    confirm_before:
+      - apply_discount
+      - create_quote
+    max_steps: 20
