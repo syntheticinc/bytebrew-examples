@@ -37,18 +37,16 @@ services:
       mcp-server:
         condition: service_completed_successfully
 
-  service:
-    build: ./service
+  web-client:
+    image: bytebrew/web-client:latest
     ports:
-      - "3000:3000"
+      - "3000:80"
     environment:
-      ENGINE_URL: http://engine:8443
-      ADMIN_USER: ${ADMIN_USER:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-example-jwt-secret}
-      PORT: "3000"
+      API_URL: http://engine:8443
     depends_on:
-      - engine
+      engine:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:

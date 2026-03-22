@@ -38,18 +38,16 @@ services:
       mcp-server:
         condition: service_completed_successfully
 
-  service:
-    image: node:20-alpine
-    # Placeholder for the escalation webhook service.
-    # Replace with your own service that handles escalation webhooks.
-    command: >
-      sh -c "
-        echo 'Escalation webhook service placeholder';
-        echo 'POST /webhooks/escalation will receive escalation requests';
-        npx -y http-echo-server 3000
-      "
+  web-client:
+    image: bytebrew/web-client:latest
     ports:
-      - "3000:3000"
+      - "3000:80"
+    environment:
+      API_URL: http://engine:8443
+    depends_on:
+      engine:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pgdata:
