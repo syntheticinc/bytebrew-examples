@@ -37,6 +37,13 @@ services:
         condition: service_healthy
       mcp-server:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8443/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
 
   web-client:
     image: bytebrew/web-client:latest
