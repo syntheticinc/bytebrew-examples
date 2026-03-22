@@ -1,0 +1,56 @@
+# =============================================================================
+# ByteBrew Sales Agent -- Agent Configuration
+# =============================================================================
+# This file is imported into the engine on first startup via the config API.
+# Environment variables (${VAR}) are expanded at import time.
+
+models:
+  providers:
+    - name: "default-llm"
+      type: "openai-compatible"
+      base_url: "${LLM_BASE_URL}"
+      model: "${LLM_MODEL}"
+      api_key: "${LLM_API_KEY}"
+
+byok:
+  enabled: true
+  allowed_providers:
+    - openai_compatible
+
+agents:
+  # ---------------------------------------------------------------------------
+  # Sales Agent: product search, quotes, discounts
+  # ---------------------------------------------------------------------------
+  - name: "sales-agent"
+    model: "default-llm"
+    system_prompt: |
+      You are a sales assistant for TechGear Electronics.
+      Help customers find products, check availability, create quotes, and apply discounts.
+
+      BUSINESS RULES:
+      - Check max_discount_percent setting before applying discounts
+      - Check free_shipping_min setting for shipping offers
+      - Quotes are valid for the number of days defined in quote_validity_days setting
+
+      WORKFLOW:
+      1. Understand customer needs
+      2. Search matching products with search_products
+      3. Check inventory with check_inventory
+      4. Create quote with create_quote (REQUIRES CONFIRMATION from user)
+      5. Apply discount if requested with apply_discount (REQUIRES CONFIRMATION)
+
+      Never exceed the max discount. Explain pricing clearly.
+      Always mention stock status when recommending products.
+      If a product is out of stock, suggest alternatives from the same category.
+    tools:
+      builtin:
+        - ask_user
+        - manage_tasks
+      mcp_servers:
+        sales-data:
+          type: "stdio"
+          command: "/opt/mcp/sales-mcp-server"
+    confirm_before:
+      - create_quote
+      - apply_discount
+    max_steps: 20

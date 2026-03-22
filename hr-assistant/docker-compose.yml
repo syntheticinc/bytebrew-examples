@@ -1,0 +1,56 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bytebrew}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bytebrew}
+      POSTGRES_DB: ${POSTGRES_DB:-bytebrew}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bytebrew}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mcp-server:
+    build: ./mcp-server
+    volumes:
+      - mcp-bin:/opt/mcp
+
+  engine:
+    image: bytebrew/engine:latest
+    ports:
+      - "8443:8443"
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-bytebrew}:${POSTGRES_PASSWORD:-bytebrew}@db:5432/${POSTGRES_DB:-bytebrew}?sslmode=disable"
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-example-jwt-secret}
+    volumes:
+      - ./config/agents.yaml:/etc/bytebrew/agents.yaml:ro
+      - ./config/knowledge:/etc/bytebrew/knowledge:ro
+      - ./scripts/seed-config.sh:/docker-entrypoint.d/seed-config.sh:ro
+      - mcp-bin:/opt/mcp:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      mcp-server:
+        condition: service_completed_successfully
+
+  service:
+    image: node:20-alpine
+    # Placeholder for the escalation webhook service.
+    # Replace with your own service that handles escalation webhooks.
+    command: >
+      sh -c "
+        echo 'Escalation webhook service placeholder';
+        echo 'POST /webhooks/escalation will receive escalation requests';
+        npx -y http-echo-server 3000
+      "
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  mcp-bin:

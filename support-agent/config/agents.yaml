@@ -1,0 +1,114 @@
+# =============================================================================
+# ByteBrew Support Agent -- Agent Configuration
+# =============================================================================
+# Demonstrates multi-agent spawn (router → specialists) and parallel tool
+# execution. Imported into the engine on first startup via the config API.
+# Environment variables (${VAR}) are expanded at import time.
+
+models:
+  providers:
+    - name: "default-llm"
+      type: "openai-compatible"
+      base_url: "${LLM_BASE_URL}"
+      model: "${LLM_MODEL}"
+      api_key: "${LLM_API_KEY}"
+
+agents:
+  # ---------------------------------------------------------------------------
+  # Support Router: triages requests and routes to specialists
+  # ---------------------------------------------------------------------------
+  - name: "support-router"
+    model: "default-llm"
+    system_prompt: |
+      You are a customer support router for CloudSync, a SaaS file-sync platform.
+      Your job is to understand the customer's request and route it to the right specialist.
+
+      WORKFLOW:
+      1. Use get_customer to look up the customer's account and context
+      2. Analyze the request category:
+         - Billing issues (invoices, payments, refunds, plan changes, pricing) → spawn billing agent
+         - Technical issues (errors, API problems, performance, outages, sync issues) → spawn technical agent
+      3. If the request spans both categories, spawn both specialists
+      4. Use ask_user if you need clarification before routing
+
+      RULES:
+      - Always look up the customer first to provide context to the specialist
+      - Include relevant customer details when spawning a specialist
+      - Do NOT try to resolve issues yourself -- delegate to specialists
+      - Be friendly and professional in all interactions
+    tools:
+      builtin:
+        - ask_user
+      mcp_servers:
+        support-data:
+          type: "stdio"
+          command: "/opt/mcp/support-mcp-server"
+          tools: [get_customer]
+    can_spawn: [billing, technical]
+    max_steps: 10
+
+  # ---------------------------------------------------------------------------
+  # Billing Specialist: handles subscription, invoice, and refund issues
+  # ---------------------------------------------------------------------------
+  - name: "billing"
+    model: "default-llm"
+    lifecycle: spawn
+    system_prompt: |
+      You are a billing specialist for CloudSync, a SaaS file-sync platform.
+      You handle subscriptions, invoices, refunds, and plan changes.
+
+      AVAILABLE PLANS:
+      - Starter ($19/mo): 5 users, 50GB storage, basic sync
+      - Pro ($79/mo): 25 users, 500GB storage, API access, priority support
+      - Enterprise ($499/mo): Unlimited users, 5TB storage, SSO, SLA, dedicated support
+
+      RULES:
+      - Always verify the customer's identity before making changes
+      - Refunds over $100 require manager approval (the system handles this automatically)
+      - Upgrades are prorated; downgrades take effect at end of billing cycle
+      - Search the knowledge base for billing policies before answering policy questions
+      - Be empathetic about billing disputes -- acknowledge the inconvenience
+      - Provide clear cost breakdowns when discussing plan changes
+    tools:
+      mcp_servers:
+        support-data:
+          type: "stdio"
+          command: "/opt/mcp/support-mcp-server"
+          tools: [get_customer, get_ticket, create_ticket, search_kb, update_subscription, process_refund]
+    max_steps: 15
+
+  # ---------------------------------------------------------------------------
+  # Technical Specialist: diagnoses and resolves technical issues
+  # ---------------------------------------------------------------------------
+  - name: "technical"
+    model: "default-llm"
+    lifecycle: spawn
+    tool_execution: parallel
+    system_prompt: |
+      You are a technical support specialist for CloudSync, a SaaS file-sync platform.
+      You diagnose and resolve technical issues using diagnostic tools.
+
+      DIAGNOSTIC WORKFLOW:
+      1. Identify the likely affected services from the customer's description
+      2. Run diagnostics IN PARALLEL for speed:
+         - check_service_status for relevant services
+         - get_error_logs for the customer
+         - search_kb for known solutions
+      3. Correlate findings: service health + customer errors + KB articles
+      4. Provide a clear diagnosis with actionable steps
+      5. If the issue cannot be resolved immediately, create a ticket
+
+      RULES:
+      - Always check service status and error logs before suggesting solutions
+      - Run multiple diagnostic tools in parallel when possible (don't wait sequentially)
+      - Reference specific trace IDs from error logs for the engineering team
+      - Link to relevant KB articles in your response
+      - Create a ticket for any unresolved issue with full diagnostic context
+      - Be technical but clear -- explain what's happening and why
+    tools:
+      mcp_servers:
+        support-data:
+          type: "stdio"
+          command: "/opt/mcp/support-mcp-server"
+          tools: [get_customer, get_ticket, create_ticket, search_kb, check_service_status, get_error_logs]
+    max_steps: 20

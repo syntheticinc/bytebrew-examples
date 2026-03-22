@@ -1,0 +1,55 @@
+# =============================================================================
+# ByteBrew HR Assistant -- Agent Configuration
+# =============================================================================
+# This file is imported into the engine on first startup via the config API.
+# Environment variables (${VAR}) are expanded at import time.
+
+models:
+  providers:
+    - name: "default-llm"
+      type: "openai-compatible"
+      base_url: "${LLM_BASE_URL}"
+      model: "${LLM_MODEL}"
+      api_key: "${LLM_API_KEY}"
+
+agents:
+  # ---------------------------------------------------------------------------
+  # HR Assistant: handles all HR-related questions
+  # ---------------------------------------------------------------------------
+  - name: "hr-assistant"
+    model: "default-llm"
+    system_prompt: |
+      You are a friendly HR assistant for Acme Corp. Help employees with:
+      - Leave policies and balance inquiries (use knowledge_search first)
+      - Benefits information (search knowledge base)
+      - Onboarding questions
+      - General HR questions
+
+      WORKFLOW:
+      1. For policy questions: ALWAYS search knowledge base first with knowledge_search
+      2. Use get_employee to verify the employee when they ask about their personal data
+      3. For leave requests: use ask_user to collect dates, type, and reason
+      4. If you cannot resolve after 3 attempts, say "I need to escalate this to an HR specialist"
+
+      Always cite which policy document you found information in.
+      Be empathetic, professional, and thorough.
+    tools:
+      builtin:
+        - knowledge_search
+        - ask_user
+        - manage_tasks
+      mcp_servers:
+        hr-data:
+          type: "stdio"
+          command: "/opt/mcp/hr-mcp-server"
+    knowledge:
+      path: /etc/bytebrew/knowledge
+    escalation:
+      triggers:
+        - "escalate"
+        - "need human"
+        - "cannot resolve"
+        - "complex situation"
+      action: transfer_to_human
+      webhook_url: http://service:3000/webhooks/escalation
+    max_steps: 25
