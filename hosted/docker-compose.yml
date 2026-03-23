@@ -43,6 +43,17 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  # Auto-pull embedding model (runs once, then exits)
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull nomic-embed-text"]
+    restart: "no"
+
   # Single Engine instance for all examples
   engine:
     image: bytebrew/engine:latest
@@ -54,11 +65,14 @@ services:
     volumes:
       - ./config/agents.yaml:/etc/bytebrew/agents.yaml:ro
       - ./config/knowledge:/etc/bytebrew/knowledge:ro
+      - /etc/bytebrew/docs-knowledge:/etc/bytebrew/docs-knowledge:ro
       - ./scripts/seed.sh:/docker-entrypoint.d/seed.sh:ro
       - mcp-bin:/opt/mcp:ro
     depends_on:
       db:
         condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
       mcp-hr:
         condition: service_completed_successfully
       mcp-support:
@@ -71,6 +85,23 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+    restart: unless-stopped
+
+  # MCP Documentation Server (direct RAG, no LLM)
+  mcp-docs:
+    image: bytebrew/mcp-docs:latest
+    ports:
+      - "8090:8090"
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-bytebrew}:${POSTGRES_PASSWORD:-bytebrew}@db:5432/${POSTGRES_DB:-bytebrew}?sslmode=disable"
+      OLLAMA_URL: http://ollama:11434
+      AGENT_NAME: docs-assistant
+      PORT: "8090"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     restart: unless-stopped
 
   # 3 service proxies — one per example
