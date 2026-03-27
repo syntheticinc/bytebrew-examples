@@ -352,13 +352,15 @@ var byokHeaders = []string{
 func (s *Service) proxyChat(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(ctxKeyUserID).(string)
 
-	allowed, retryAfter := s.rateLimiter.Allow(userID)
-	if !allowed {
-		writeJSON(w, http.StatusTooManyRequests, map[string]any{
-			"error":               "rate limit exceeded",
-			"retry_after_seconds": int(retryAfter.Seconds()),
-		})
-		return
+	if s.cfg.RateLimit > 0 {
+		allowed, retryAfter := s.rateLimiter.Allow(userID)
+		if !allowed {
+			writeJSON(w, http.StatusTooManyRequests, map[string]any{
+				"error":               "rate limit exceeded",
+				"retry_after_seconds": int(retryAfter.Seconds()),
+			})
+			return
+		}
 	}
 
 	agentName := chi.URLParam(r, "agent")
@@ -509,7 +511,7 @@ func (s *Service) health(w http.ResponseWriter, r *http.Request) {
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	}
 
-	if userID != "" {
+	if userID != "" && s.cfg.RateLimit > 0 {
 		remaining, resetAt := s.rateLimiter.Info(userID)
 		resp["rate_limit"] = map[string]any{
 			"remaining": remaining,
