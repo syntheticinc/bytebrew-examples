@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -398,13 +397,17 @@ func (s *Service) proxyChat(w http.ResponseWriter, r *http.Request) {
 	}
 	flusher.Flush()
 
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 64*1024), 256*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Fprintf(w, "%s\n", line)
-		flusher.Flush()
-
+	// Stream bytes directly — no buffering. bufio.Scanner delays delivery.
+	buf := make([]byte, 1024)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			w.Write(buf[:n])
+			flusher.Flush()
+		}
+		if readErr != nil {
+			break
+		}
 		if r.Context().Err() != nil {
 			break
 		}
