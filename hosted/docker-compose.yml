@@ -62,6 +62,9 @@ services:
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       EMBED_URL: http://ollama:11434
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3-coder-next}
     volumes:
       - ./config/agents.yaml:/etc/bytebrew/agents.yaml:ro
       - ./config/knowledge:/etc/bytebrew/knowledge:ro

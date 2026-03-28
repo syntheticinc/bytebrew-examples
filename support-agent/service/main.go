@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -340,6 +343,14 @@ func (s *Service) createAPIToken(ctx context.Context, sessionToken string) (stri
 // Handlers
 // ---------------------------------------------------------------------------
 
+// byokHeaders are forwarded from the client to the engine for per-request
+// model selection (Bring Your Own Key).
+var byokHeaders = []string{
+	"X-Model-Provider",
+	"X-Model-API-Key",
+	"X-Model-Name",
+}
+
 func (s *Service) proxyChat(w http.ResponseWriter, r *http.Request) {
 	userID := r.Context().Value(ctxKeyUserID).(string)
 
@@ -357,59 +368,93 @@ func (s *Service) proxyChat(w http.ResponseWriter, r *http.Request) {
 	agentName := chi.URLParam(r, "agent")
 	engineURL := s.cfg.EngineURL + "/api/v1/agents/" + agentName + "/chat"
 
-	proxyReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, engineURL, r.Body)
+	// Read request body BEFORE writing response headers.
+	// After WriteHeader + Flush, Go may close r.Body.
+	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to build engine request"})
-		return
-	}
-	proxyReq.Header.Set("Content-Type", "application/json")
-	proxyReq.Header.Set("Authorization", "Bearer "+s.engineToken)
-
-	// No timeout for SSE streaming.
-	client := &http.Client{}
-	resp, err := client.Do(proxyReq)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "engine request failed", "error", err)
-		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "engine unavailable"})
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		w.WriteHeader(resp.StatusCode)
-		buf := make([]byte, 4096)
-		n, _ := resp.Body.Read(buf)
-		w.Write(buf[:n])
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read body"})
 		return
 	}
 
-	// Stream SSE back to the browser.
+	// Send SSE headers to browser IMMEDIATELY — before calling engine.
+	// Otherwise browser sees (pending) for the entire engine processing time.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "streaming not supported"})
+	rc := http.NewResponseController(w)
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprint(w, ": stream-start\n\n")
+	_ = rc.Flush()
+
+	proxyReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, engineURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		fmt.Fprint(w, "event: error\ndata: {\"error\":\"failed to build request\"}\n\n")
+		rc.Flush()
 		return
 	}
-	flusher.Flush()
+	proxyReq.Header.Set("Content-Type", "application/json")
+	proxyReq.Header.Set("Authorization", "Bearer "+s.engineToken)
 
-	// Stream bytes directly — no buffering. bufio.Scanner delays delivery.
-	buf := make([]byte, 1024)
-	for {
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			w.Write(buf[:n])
-			flusher.Flush()
+	// Forward BYOK headers from the client to engine.
+	for _, h := range byokHeaders {
+		if v := r.Header.Get(h); v != "" {
+			proxyReq.Header.Set(h, v)
 		}
-		if readErr != nil {
-			break
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			DisableCompression: true,
+		},
+	}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "engine request failed", "error", err)
+		fmt.Fprint(w, "event: error\ndata: {\"error\":\"engine unavailable\"}\n\n")
+		rc.Flush()
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		buf := make([]byte, 4096)
+		n, _ := resp.Body.Read(buf)
+		fmt.Fprintf(w, "event: error\ndata: {\"error\":%q}\n\n", string(buf[:n]))
+		rc.Flush()
+		return
+	}
+
+	// Read SSE events and forward with flush after each event.
+	// Go's http.Client buffers resp.Body reads in a 4KB bufio.Reader,
+	// so multiple SSE events arrive in one Read() call. Without a brief
+	// pause after flush, all events are written within microseconds and
+	// TCP coalesces them into one packet — breaking browser streaming.
+	scanner := bufio.NewScanner(resp.Body)
+	var eventBuf []byte
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		eventBuf = append(eventBuf, line...)
+		eventBuf = append(eventBuf, '\n')
+
+		// Blank line = end of SSE event → write + flush + yield
+		if len(line) == 0 {
+			w.Write(eventBuf)
+			_ = rc.Flush()
+			eventBuf = eventBuf[:0]
+			// Yield to OS so TCP sends the packet before next write.
+			time.Sleep(1 * time.Millisecond)
 		}
+
 		if r.Context().Err() != nil {
 			break
 		}
+	}
+	// Flush any remaining data
+	if len(eventBuf) > 0 {
+		w.Write(eventBuf)
+		_ = rc.Flush()
 	}
 }
 
@@ -549,7 +594,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Model-Provider, X-Model-API-Key, X-Model-Name")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
