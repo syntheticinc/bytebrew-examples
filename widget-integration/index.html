@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ByteBrew Widget Example</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+    h1 { color: #1a1a1a; }
+    code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; }
+    pre { background: #f4f4f4; padding: 1rem; border-radius: 8px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>ByteBrew Widget Example</h1>
+  <p>This page demonstrates the ByteBrew embeddable chat widget.</p>
+
+  <h2>Setup</h2>
+  <ol>
+    <li>Start ByteBrew Engine: <code>docker compose up -d</code></li>
+    <li>Create an agent in Admin Dashboard (<code>http://localhost:8443/admin</code>)</li>
+    <li>Mark the agent as <strong>Public</strong></li>
+    <li>Create an API key with <strong>Chat (Public)</strong> scope</li>
+    <li>Replace <code>YOUR_API_KEY</code> and <code>YOUR_AGENT_NAME</code> below</li>
+    <li>Open this file in a browser</li>
+  </ol>
+
+  <h2>How It Works</h2>
+  <p>The widget is loaded via a single <code>&lt;script&gt;</code> tag. It creates a chat bubble
+  in the bottom-right corner. Click to open, type a message, and get AI responses streamed in real-time.</p>
+
+  <h2>Configuration</h2>
+  <pre><code>&lt;script src="http://localhost:8443/widget.js"
+        data-agent="YOUR_AGENT_NAME"
+        data-api-key="YOUR_API_KEY"
+        data-theme="light"
+        data-position="bottom-right"
+        data-title="AI Assistant"&gt;
+&lt;/script&gt;</code></pre>
+
+  <!-- ByteBrew Widget -->
+  <script src="http://localhost:8443/widget.js"
+          data-agent="support-bot"
+          data-api-key="bb_pk_replace_me"
+          data-theme="light"
+          data-title="AI Assistant">
+  </script>
+</body>
+</html>
