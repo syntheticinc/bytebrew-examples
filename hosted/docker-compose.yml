@@ -1,11 +1,4 @@
 services:
-  watchtower:
-    image: containrrr/watchtower
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --cleanup --label-enable
-    restart: unless-stopped
-
   db:
     image: pgvector/pgvector:pg16
     environment:
@@ -64,8 +57,6 @@ services:
   # Single Engine instance for all examples
   engine:
     image: bytebrew/engine:latest
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-bytebrew}:${POSTGRES_PASSWORD:-bytebrew}@db:5432/${POSTGRES_DB:-bytebrew}?sslmode=disable"
       ADMIN_USER: ${ADMIN_USER:-admin}
