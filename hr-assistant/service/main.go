@@ -52,7 +52,10 @@ func loadConfig() Config {
 		EngineURL:     envOr("ENGINE_URL", "http://engine:8443"),
 		AdminUser:     envOr("ADMIN_USER", "admin"),
 		AdminPassword: envOr("ADMIN_PASSWORD", "changeme"),
-		JWTSecret:     envOr("JWT_SECRET", "shared-secret"),
+		// BFF session cookie secret — NOT used to authenticate to the engine.
+		// The engine runs on Ed25519 (auto-managed). BFF_JWT_SECRET signs the
+		// end-user session tokens this proxy issues to browsers.
+		JWTSecret: envOr("BFF_JWT_SECRET", "shared-secret"),
 		Port:          envOr("PORT", "3000"),
 		RateLimit:     envOrInt("RATE_LIMIT", 15),
 		RateWindow:    envOrDuration("RATE_WINDOW", time.Hour),

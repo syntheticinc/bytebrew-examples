@@ -26,12 +26,14 @@ services:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-bytebrew}:${POSTGRES_PASSWORD:-bytebrew}@db:5432/${POSTGRES_DB:-bytebrew}?sslmode=disable"
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-example-jwt-secret}
+      BYTEBREW_AUTH_MODE: ${BYTEBREW_AUTH_MODE:-local}
+      BYTEBREW_JWT_KEYS_DIR: ${BYTEBREW_JWT_KEYS_DIR:-/var/lib/bytebrew/keys}
     volumes:
       - ./config/agents.yaml:/etc/bytebrew/agents.yaml:ro
       - ./config/knowledge:/etc/bytebrew/knowledge:ro
       - ./scripts/seed-config.sh:/docker-entrypoint.d/seed-config.sh:ro
       - mcp-bin:/opt/mcp:ro
+      - engine-keys:/var/lib/bytebrew/keys
     depends_on:
       db:
         condition: service_healthy
@@ -59,3 +61,4 @@ services:
 volumes:
   pgdata:
   mcp-bin:
+  engine-keys:

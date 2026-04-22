@@ -110,7 +110,12 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # 3 service proxies — one per example
+  # 3 service proxies — one per example.
+  #
+  # BFF_JWT_SECRET below is used ONLY by the BFF service proxy to sign its own
+  # end-user session cookies (HS256). It is NOT used for engine authentication —
+  # the engine runs in local auth mode and manages its own Ed25519 keypair
+  # (mounted in engine-keys volume). Generate with: openssl rand -hex 32
   service-hr:
     build: ../hr-assistant/service
     ports:
@@ -119,7 +124,7 @@ services:
       ENGINE_URL: http://engine:8443
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-}
+      BFF_JWT_SECRET: ${BFF_JWT_SECRET:-}
     depends_on:
       engine:
         condition: service_healthy
@@ -133,7 +138,7 @@ services:
       ENGINE_URL: http://engine:8443
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-}
+      BFF_JWT_SECRET: ${BFF_JWT_SECRET:-}
     depends_on:
       engine:
         condition: service_healthy
@@ -147,7 +152,7 @@ services:
       ENGINE_URL: http://engine:8443
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
-      JWT_SECRET: ${JWT_SECRET:-}
+      BFF_JWT_SECRET: ${BFF_JWT_SECRET:-}
     depends_on:
       engine:
         condition: service_healthy
